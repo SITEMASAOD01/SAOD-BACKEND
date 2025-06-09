@@ -3,6 +3,8 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
+// Cambio para forzar deploy en Render
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
