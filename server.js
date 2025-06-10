@@ -3,8 +3,6 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
-// Forzar deploy en Render
-
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,7 +12,6 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// ==== Configuración de niveles ====
 const NIVELES_CLIENTE = {
     NUEVO: { min: 0, max: 19, multiplier: 0.10, color: '#22c55e' },
     FRECUENTE: { min: 20, max: 49, multiplier: 0.12, color: '#eab308' },
@@ -22,7 +19,6 @@ const NIVELES_CLIENTE = {
     CREDIP_VIP: { min: 100, max: Infinity, multiplier: 0.20, color: '#dc2626' }
 };
 
-// ==== Inicialización de la base de datos y tablas ====
 function initDatabase() {
     return new Promise((resolve, reject) => {
         const db = new sqlite3.Database(DB_FILE, (err) => {
@@ -74,7 +70,7 @@ function calcularCredcambios(montoSoles, nivel) {
     return Math.round((montoSoles * multiplier) * 100) / 100;
 }
 
-// ================== RUTAS DE LA API ==================
+// ====== RUTAS DE LA API ======
 
 // Info API
 app.get('/', (req, res) => {
@@ -118,7 +114,7 @@ app.get('/api/cliente/:dni', (req, res) => {
     });
 });
 
-// === POST NUEVO CLIENTE ===
+// POST NUEVO CLIENTE
 app.post('/api/cliente', (req, res) => {
   const { dni, nombre, direccion, telefono } = req.body;
   if(!dni || !nombre) return res.status(400).json({ error: 'Datos incompletos' });
@@ -136,7 +132,7 @@ app.post('/api/cliente', (req, res) => {
   );
 });
 
-// === REGISTRO DE VENTA ===
+// REGISTRO DE VENTA
 app.post('/api/venta', (req, res) => {
     const { dni, monto, descripcion } = req.body;
     if (!dni || !monto) return res.status(400).json({ error: 'Datos incompletos para registrar venta' });
@@ -144,12 +140,10 @@ app.post('/api/venta', (req, res) => {
         if (err || !cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
         const nivel = cliente.nivel || determinarNivel(cliente.visitas_total || 0);
         const credicambios = calcularCredcambios(monto, nivel);
-        // Actualiza cliente
         db.run('UPDATE clientes SET credicambios_total = credicambios_total + ?, visitas_total = visitas_total + 1, nivel = ? WHERE id = ?',
             [credicambios, determinarNivel((cliente.visitas_total || 0) + 1), cliente.id],
             function(updateErr) {
                 if (updateErr) return res.status(500).json({ error: 'Error al actualizar cliente' });
-                // Inserta transacción
                 db.run('INSERT INTO transacciones (cliente_id, monto_gastado, credicambios_ganados, multiplicador_usado, descripcion) VALUES (?, ?, ?, ?, ?)',
                     [cliente.id, monto, credicambios, NIVELES_CLIENTE[nivel].multiplier, descripcion],
                     function(transErr) {
@@ -162,7 +156,7 @@ app.post('/api/venta', (req, res) => {
     });
 });
 
-// ========== ADMINISTRACIÓN SAOD ==========
+// ADMINISTRACIÓN SAOD
 
 const ADMIN_CLAVE = process.env.ADMIN_CLAVE || "superclave2024";
 
@@ -180,6 +174,7 @@ function adminAuth(req, res, next) {
   else res.status(401).json({ error: 'No autorizado' });
 }
 
+// Clientes admin
 app.get('/api/admin/clientes', adminAuth, (req, res) => {
   db.all('SELECT * FROM clientes', (err, rows) => {
     if (err) return res.status(500).json({ error: 'Error al obtener clientes' });
@@ -189,6 +184,7 @@ app.get('/api/admin/clientes', adminAuth, (req, res) => {
   });
 });
 
+// Historial de un cliente
 app.get('/api/admin/historial/:dni', adminAuth, (req, res) => {
   db.get('SELECT * FROM clientes WHERE dni = ?', [req.params.dni], (err, cliente) => {
     if (!cliente) return res.status(404).json({ error: 'No encontrado' });
@@ -198,12 +194,14 @@ app.get('/api/admin/historial/:dni', adminAuth, (req, res) => {
   });
 });
 
+// Reporte platos más pedidos
 app.get('/api/admin/reporte-platos', adminAuth, (req, res) => {
   db.all('SELECT descripcion, COUNT(*) as cantidad FROM transacciones GROUP BY descripcion ORDER BY cantidad DESC', [], (err, rows) => {
     res.json({ platos: rows });
   });
 });
 
+// Reporte zonas más activas
 app.get('/api/admin/reporte-zonas', adminAuth, (req, res) => {
   db.all(`SELECT c.direccion as zona, COUNT(t.id) as cantidad 
           FROM clientes c LEFT JOIN transacciones t ON c.id = t.cliente_id 
@@ -212,7 +210,21 @@ app.get('/api/admin/reporte-zonas', adminAuth, (req, res) => {
   });
 });
 
-// ============= INICIO DEL SERVIDOR =============
+// PEDIDOS EN TIEMPO REAL
+app.get('/api/admin/pedidos', adminAuth, (req, res) => {
+  db.all(`
+    SELECT t.id as pedido_id, c.dni, c.nombre_completo, c.direccion, t.monto_gastado, c.credicambios_total, 
+           t.fecha_transaccion, t.descripcion, t.sucursal
+    FROM transacciones t
+    JOIN clientes c ON t.cliente_id = c.id
+    ORDER BY t.fecha_transaccion DESC
+  `, (err, pedidos) => {
+    if (err) return res.status(500).json({ error: 'Error al obtener pedidos' });
+    res.json({ pedidos });
+  });
+});
+
+// INICIO DEL SERVIDOR
 let db;
 initDatabase().then((database) => {
     db = database;
