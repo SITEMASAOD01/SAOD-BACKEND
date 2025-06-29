@@ -66,11 +66,9 @@ function determinarNivel(visitas) {
 }
 
 function calcularCredcambios(montoSoles, nivel) {
-    const multiplier = NIVELES_CLIENTE[nivel]?.multiplier || 0.10;
+    const multiplier = NIVELES_CLIENTE[nivel]?.multiplier || 0.05;
     return Math.round((montoSoles * multiplier) * 100) / 100;
 }
-
-// ====== RUTAS DE LA API ======
 
 // Info API
 app.get('/', (req, res) => {
@@ -87,7 +85,7 @@ app.get('/api/cliente/:dni', (req, res) => {
         db.all(`SELECT * FROM transacciones WHERE cliente_id = ? ORDER BY fecha_transaccion DESC LIMIT 20`, [cliente.id], (err, transacciones) => {
             if (err) return res.status(500).json({ error: 'Error obteniendo historial' });
             const nivelConfig = NIVELES_CLIENTE[cliente.nivel] || NIVELES_CLIENTE.NUEVO;
-            const equivalenteSoles = Math.round((cliente.credicambios_total * 0.2) * 100) / 100;
+            const equivalenteSoles = Math.round((cliente.credicambios_total * 0.1) * 100) / 100;
             res.json({
                 cliente: {
                     dni: cliente.dni,
@@ -174,7 +172,6 @@ function adminAuth(req, res, next) {
   else res.status(401).json({ error: 'No autorizado' });
 }
 
-// Clientes admin
 app.get('/api/admin/clientes', adminAuth, (req, res) => {
   db.all('SELECT * FROM clientes', (err, rows) => {
     if (err) return res.status(500).json({ error: 'Error al obtener clientes' });
@@ -184,7 +181,6 @@ app.get('/api/admin/clientes', adminAuth, (req, res) => {
   });
 });
 
-// Historial de un cliente
 app.get('/api/admin/historial/:dni', adminAuth, (req, res) => {
   db.get('SELECT * FROM clientes WHERE dni = ?', [req.params.dni], (err, cliente) => {
     if (!cliente) return res.status(404).json({ error: 'No encontrado' });
@@ -194,14 +190,12 @@ app.get('/api/admin/historial/:dni', adminAuth, (req, res) => {
   });
 });
 
-// Reporte platos más pedidos
 app.get('/api/admin/reporte-platos', adminAuth, (req, res) => {
   db.all('SELECT descripcion, COUNT(*) as cantidad FROM transacciones GROUP BY descripcion ORDER BY cantidad DESC', [], (err, rows) => {
     res.json({ platos: rows });
   });
 });
 
-// Reporte zonas más activas
 app.get('/api/admin/reporte-zonas', adminAuth, (req, res) => {
   db.all(`SELECT c.direccion as zona, COUNT(t.id) as cantidad 
           FROM clientes c LEFT JOIN transacciones t ON c.id = t.cliente_id 
@@ -224,7 +218,46 @@ app.get('/api/admin/pedidos', adminAuth, (req, res) => {
   });
 });
 
-// INICIO DEL SERVIDOR
+// RESUMEN DEL DÍA POR CLIENTE
+app.get('/api/admin/resumen-dia/:dni', adminAuth, (req, res) => {
+  const { dni } = req.params;
+  const fechaHoy = new Date().toISOString().substring(0, 10);
+  db.get('SELECT * FROM clientes WHERE dni = ?', [dni], (err, cliente) => {
+    if (err || !cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    db.all(
+      `SELECT t.id as pedido_id, t.descripcion, t.monto_gastado, t.fecha_transaccion, 
+              c.credicambios_total, t.credicambios_ganados
+         FROM transacciones t
+         JOIN clientes c ON t.cliente_id = c.id
+         WHERE c.dni = ? AND DATE(t.fecha_transaccion) = ?
+         ORDER BY t.fecha_transaccion DESC`,
+      [dni, fechaHoy],
+      (err, pedidos) => {
+        if (err) return res.status(500).json({ error: 'Error al obtener resumen' });
+        res.json({ cliente: { dni: cliente.dni, nombre: cliente.nombre_completo }, pedidos });
+      }
+    );
+  });
+});
+
+app.post('/api/canje', (req, res) => {
+  const { dni, cantidadCanjeada } = req.body;
+  if (!dni || typeof cantidadCanjeada !== "number" || cantidadCanjeada <= 0) {
+    return res.status(400).json({ error: "Datos de canje incompletos o inválidos." });
+  }
+  db.get('SELECT * FROM clientes WHERE dni = ?', [dni], (err, cliente) => {
+    if (err || !cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    let actual = parseFloat(cliente.credicambios_total) || 0;
+    let nuevoSaldo = actual - cantidadCanjeada;
+    if (nuevoSaldo < 0) nuevoSaldo = 0;
+    db.run('UPDATE clientes SET credicambios_total = ? WHERE dni = ?', [nuevoSaldo, dni], function(err2) {
+      if (err2) return res.status(500).json({ error: 'No se pudo canjear credicambios.' });
+      res.json({ ok: true, nuevoSaldo });
+    });
+  });
+});
+
+
 let db;
 initDatabase().then((database) => {
     db = database;
