@@ -6,7 +6,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DB_FILE = process.env.DB_FILE || './database.sqlite';
+const DB_FILE = process.env.DB_FILE || '/data/database.sqlite';
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
