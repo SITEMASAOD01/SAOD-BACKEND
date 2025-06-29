@@ -257,7 +257,6 @@ app.post('/api/canje', (req, res) => {
   });
 });
 
-
 let db;
 initDatabase().then((database) => {
     db = database;
