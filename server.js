@@ -43,7 +43,7 @@ function initDatabase() {
                     visitas_total INTEGER DEFAULT 0,
                     nivel VARCHAR(20) DEFAULT 'NUEVO',
                     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )`);
+                )`);    
                 db.run(`CREATE TABLE IF NOT EXISTS transacciones (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     cliente_id INTEGER NOT NULL,
