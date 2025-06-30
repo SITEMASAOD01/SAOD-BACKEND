@@ -261,7 +261,7 @@ app.get('/api/admin/resumen-dia/:dni', adminAuth, (req, res) => {
 });
 
 // CANJE de credicambios
-    app.post('/api/canje', (req, res) => { ... });
+    app.post('/api/canje', (req, res) => {
     const { dni, cantidadCanjeada } = req.body;
     if (!dni || typeof cantidadCanjeada !== "number" || cantidadCanjeada <= 0) {
         return res.status(400).json({ error: "Datos de canje incompletos o inválidos." });
@@ -277,7 +277,6 @@ app.get('/api/admin/resumen-dia/:dni', adminAuth, (req, res) => {
         });
     });
 });
-
 
 
 // (OPCIONAL) Endpoint para limpiar la base de datos SOLO para desarrollo/pruebas
