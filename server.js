@@ -278,6 +278,8 @@ app.post('/api/canje', (req, res) => {
     });
 });
 
+
+
 // (OPCIONAL) Endpoint para limpiar la base de datos SOLO para desarrollo/pruebas
 // Recuerda borrar esto en producción
 app.post('/api/admin/limpiar-todo', (req, res) => {
