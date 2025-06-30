@@ -30,6 +30,7 @@ function initDatabase() {
                 reject(err);
                 return;
             }
+            
             db.serialize(() => {
                 db.run(`PRAGMA foreign_keys = ON`);
                 db.run(`CREATE TABLE IF NOT EXISTS clientes (
