@@ -6,8 +6,6 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-// Base de datos SOLO en carpeta persistente
 const DB_FILE = process.env.DB_FILE || '/data/database.sqlite';
 
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -21,7 +19,6 @@ const NIVELES_CLIENTE = {
     CREDIP_VIP: { min: 100, max: Infinity, multiplier: 0.20, color: '#dc2626' }
 };
 
-// Inicializa la base de datos y crea tablas si no existen
 function initDatabase() {
     return new Promise((resolve, reject) => {
         const db = new sqlite3.Database(DB_FILE, (err) => {
@@ -30,7 +27,6 @@ function initDatabase() {
                 reject(err);
                 return;
             }
-            
             db.serialize(() => {
                 db.run(`PRAGMA foreign_keys = ON`);
                 db.run(`CREATE TABLE IF NOT EXISTS clientes (
@@ -43,7 +39,7 @@ function initDatabase() {
                     visitas_total INTEGER DEFAULT 0,
                     nivel VARCHAR(20) DEFAULT 'NUEVO',
                     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )`);    
+                )`);
                 db.run(`CREATE TABLE IF NOT EXISTS transacciones (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     cliente_id INTEGER NOT NULL,
@@ -164,104 +160,8 @@ app.post('/api/venta', (req, res) => {
     });
 });
 
-// ADMINISTRACIÓN SAOD
-
-const ADMIN_CLAVE = process.env.ADMIN_CLAVE || "superclave2024";
-
-app.post('/api/admin/login', (req, res) => {
-    const { clave } = req.body;
-    if (clave === ADMIN_CLAVE) {
-        res.json({ ok: true, token: 'admin-token-123' });
-    } else {
-        res.status(401).json({ error: 'Clave incorrecta' });
-    }
-});
-
-function adminAuth(req, res, next) {
-    if (req.headers.authorization === 'Bearer admin-token-123') next();
-    else res.status(401).json({ error: 'No autorizado' });
-}
-
-// Obtener todos los clientes (admin)
-app.get('/api/admin/clientes', adminAuth, (req, res) => {
-    db.all('SELECT * FROM clientes', (err, rows) => {
-        if (err) return res.status(500).json({ error: 'Error al obtener clientes' });
-        res.json({
-            clientes: rows.map(c => ({
-                dni: c.dni,
-                nombre: c.nombre_completo,
-                telefono: c.telefono,
-                direccion: c.direccion,
-                credicambios: c.credicambios_total
-            }))
-        });
-    });
-});
-
-// Historial de un cliente (admin)
-app.get('/api/admin/historial/:dni', adminAuth, (req, res) => {
-    db.get('SELECT * FROM clientes WHERE dni = ?', [req.params.dni], (err, cliente) => {
-        if (!cliente) return res.status(404).json({ error: 'No encontrado' });
-        db.all('SELECT * FROM transacciones WHERE cliente_id = ? ORDER BY fecha_transaccion DESC', [cliente.id], (err2, trans) => {
-            res.json({ cliente: { nombre: cliente.nombre_completo }, transacciones: trans });
-        });
-    });
-});
-
-// Reporte de platos (admin)
-app.get('/api/admin/reporte-platos', adminAuth, (req, res) => {
-    db.all('SELECT descripcion, COUNT(*) as cantidad FROM transacciones GROUP BY descripcion ORDER BY cantidad DESC', [], (err, rows) => {
-        res.json({ platos: rows });
-    });
-});
-
-// Reporte por zonas (admin)
-app.get('/api/admin/reporte-zonas', adminAuth, (req, res) => {
-    db.all(`SELECT c.direccion as zona, COUNT(t.id) as cantidad 
-            FROM clientes c LEFT JOIN transacciones t ON c.id = t.cliente_id 
-            GROUP BY zona ORDER BY cantidad DESC`, [], (err, rows) => {
-        res.json({ zonas: rows });
-    });
-});
-
-// Pedidos en tiempo real (admin)
-app.get('/api/admin/pedidos', adminAuth, (req, res) => {
-    db.all(`
-        SELECT t.id as pedido_id, c.dni, c.nombre_completo, c.direccion, t.monto_gastado, c.credicambios_total, 
-               t.fecha_transaccion, t.descripcion, t.sucursal
-        FROM transacciones t
-        JOIN clientes c ON t.cliente_id = c.id
-        ORDER BY t.fecha_transaccion DESC
-    `, (err, pedidos) => {
-        if (err) return res.status(500).json({ error: 'Error al obtener pedidos' });
-        res.json({ pedidos });
-    });
-});
-
-// Resumen del día por cliente (admin)
-app.get('/api/admin/resumen-dia/:dni', adminAuth, (req, res) => {
-    const { dni } = req.params;
-    const fechaHoy = new Date().toISOString().substring(0, 10);
-    db.get('SELECT * FROM clientes WHERE dni = ?', [dni], (err, cliente) => {
-        if (err || !cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
-        db.all(
-            `SELECT t.id as pedido_id, t.descripcion, t.monto_gastado, t.fecha_transaccion, 
-                    c.credicambios_total, t.credicambios_ganados
-             FROM transacciones t
-             JOIN clientes c ON t.cliente_id = c.id
-             WHERE c.dni = ? AND DATE(t.fecha_transaccion) = ?
-             ORDER BY t.fecha_transaccion DESC`,
-            [dni, fechaHoy],
-            (err, pedidos) => {
-                if (err) return res.status(500).json({ error: 'Error al obtener resumen' });
-                res.json({ cliente: { dni: cliente.dni, nombre: cliente.nombre_completo }, pedidos });
-            }
-        );
-    });
-});
-
 // CANJE de credicambios
-    app.post('/api/canje', (req, res) => {
+app.post('/api/canje', (req, res) => {
     const { dni, cantidadCanjeada } = req.body;
     if (!dni || typeof cantidadCanjeada !== "number" || cantidadCanjeada <= 0) {
         return res.status(400).json({ error: "Datos de canje incompletos o inválidos." });
@@ -278,9 +178,7 @@ app.get('/api/admin/resumen-dia/:dni', adminAuth, (req, res) => {
     });
 });
 
-
-// (OPCIONAL) Endpoint para limpiar la base de datos SOLO para desarrollo/pruebas
-// Recuerda borrar esto en producción
+// Endpoint para limpiar la base de datos SOLO para pruebas/desarrollo
 app.post('/api/admin/limpiar-todo', (req, res) => {
     db.run('DELETE FROM transacciones', (err1) => {
         if (err1) return res.status(500).json({ error: 'No se pudo borrar transacciones' });
@@ -291,7 +189,7 @@ app.post('/api/admin/limpiar-todo', (req, res) => {
     });
 });
 
-// ==================== INICIO DEL SERVIDOR ====================
+// ========== INICIO DEL SERVIDOR ==========
 
 let db;
 initDatabase().then((database) => {
