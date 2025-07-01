@@ -190,7 +190,6 @@ app.post('/api/admin/limpiar-todo', (req, res) => {
 });
 
 // ========== INICIO DEL SERVIDOR ==========
-
 let db;
 initDatabase().then((database) => {
     db = database;
