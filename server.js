@@ -74,9 +74,14 @@ function calcularCredcambios(montoSoles, nivel) {
 
 // ==================== ENDPOINTS ====================
 
-// Info API
+// Info API (raíz)
 app.get('/', (req, res) => {
     res.json({ message: 'Sistema SAOD API funcionando correctamente', version: '2.0.0', status: 'active', niveles: NIVELES_CLIENTE });
+});
+
+// Endpoint de test (para verificar deploy)
+app.get('/test', (req, res) => {
+    res.json({ msg: 'Test OK', hora: new Date() });
 });
 
 // Consultar cliente por DNI
