@@ -50,7 +50,8 @@ function initDatabase() {
                     descripcion TEXT,
                     sucursal VARCHAR(100) DEFAULT 'FRUCAMTO',
                     tipo_transaccion VARCHAR(50) DEFAULT 'COMPRA',
-                    FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
+                    FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE                  
+
                 )`);
             });
             resolve(db);
