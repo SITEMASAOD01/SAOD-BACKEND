@@ -58,6 +58,7 @@ function initDatabase() {
     });
 }
 
+
 function determinarNivel(visitas) {
     for (const [nivel, config] of Object.entries(NIVELES_CLIENTE)) {
         if (visitas >= config.min && visitas <= config.max) {
