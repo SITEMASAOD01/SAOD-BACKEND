@@ -74,6 +74,7 @@ function calcularCredcambios(montoSoles, nivel) {
     return Math.round((montoSoles * multiplier) * 100) / 100;
 }
 
+
 // ==================== ENDPOINTS ====================
 
 // Info API (raíz)
