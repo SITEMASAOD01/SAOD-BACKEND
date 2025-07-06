@@ -1,0 +1,16 @@
+app = "flyct-long-silencio-9409"
+
+[build]
+  builder = "Dockerfile"
+
+[env]
+  PORT = "3000"
+
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+  [[services.ports]]
+    port = 443
