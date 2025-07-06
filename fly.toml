@@ -1,5 +1,4 @@
-app = "flyct-long-silencio-9409"
-
+app = https://flyct-long-silence-9409.fly.dev/
 [build]
   builder = "Dockerfile"
 
