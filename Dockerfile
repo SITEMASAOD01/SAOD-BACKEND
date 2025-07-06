@@ -9,7 +9,6 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
-
 # Expone el puerto (ajusta si tu app usa otro)
 EXPOSE 3000
 
