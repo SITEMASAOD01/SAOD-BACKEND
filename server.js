@@ -1,23 +1,6 @@
-const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const cors = require('cors');
-const helmet = require('helmet');
-require('dotenv').config();
-
-const app = express();
-const PORT = process.env.PORT || 3001;
 const DB_FILE = process.env.DB_FILE || '/data/database.sqlite';
-
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-
-const NIVELES_CLIENTE = {
-    NUEVO: { min: 0, max: 19, multiplier: 0.10, color: '#22c55e' },
-    FRECUENTE: { min: 20, max: 49, multiplier: 0.12, color: '#eab308' },
-    PREMIUM: { min: 50, max: 99, multiplier: 0.15, color: '#ea580c' },
-    CREDIP_VIP: { min: 100, max: Infinity, multiplier: 0.20, color: '#dc2626' }
-};
+console.log('Ruta BD:', DB_FILE);
 
 function initDatabase() {
     return new Promise((resolve, reject) => {
@@ -50,8 +33,7 @@ function initDatabase() {
                     descripcion TEXT,
                     sucursal VARCHAR(100) DEFAULT 'FRUCAMTO',
                     tipo_transaccion VARCHAR(50) DEFAULT 'COMPRA',
-                    FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE                  
-
+                    FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
                 )`);
             });
             resolve(db);
