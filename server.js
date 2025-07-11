@@ -1,6 +1,22 @@
 const sqlite3 = require('sqlite3').verbose();
+Copyconst fs = require('fs');
+const path = require('path');
 const DB_FILE = process.env.DB_FILE || '/data/database.sqlite';
+// Asegura que la carpeta '/data' exista (por si acaso, aunque Render la crea)
+const dbDir = path.dirname(DB_FILE);
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+}
+
 console.log('Ruta BD:', DB_FILE);
+const db = new sqlite3.Database(DB_FILE, (err) => {
+    if (err) {
+        console.error('❌ Error conectando a la base de datos:', err.message);
+        process.exit(1);
+    }
+    // ... resto del código ...
+});
+
 
 function initDatabase() {
     return new Promise((resolve, reject) => {
