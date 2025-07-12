@@ -1,4 +1,4 @@
-// server.js
+// server.js (código robusto para Render Node.js + SQLite)
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
@@ -8,48 +8,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ¡ESTA ES LA ÚNICA RUTA CORRECTA PARA RENDER!
+// Ruta correcta para Render
 const DB_FILE = process.env.DB_FILE || '/data/database.sqlite';
 console.log('Ruta BD:', DB_FILE);
-
-function initDatabase() {
-    return new Promise((resolve, reject) => {
-        const db = new sqlite3.Database(DB_FILE, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-            if (err) {
-                console.error('❌ Error conectando a la base de datos:', err.message);
-                reject(err);
-                return;
-            }
-            db.serialize(() => {
-                db.run(`PRAGMA foreign_keys = ON`);
-                db.run(`CREATE TABLE IF NOT EXISTS clientes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    dni VARCHAR(8) UNIQUE NOT NULL,
-                    nombre_completo VARCHAR(255) NOT NULL,
-                    direccion TEXT,
-                    telefono VARCHAR(15),
-                    credicambios_total REAL DEFAULT 0,
-                    visitas_total INTEGER DEFAULT 0,
-                    nivel VARCHAR(20) DEFAULT 'NUEVO',
-                    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )`);
-                db.run(`CREATE TABLE IF NOT EXISTS transacciones (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cliente_id INTEGER NOT NULL,
-                    fecha_transaccion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    monto_gastado REAL NOT NULL,
-                    credicambios_ganados REAL NOT NULL,
-                    multiplicador_usado REAL NOT NULL,
-                    descripcion TEXT,
-                    sucursal VARCHAR(100) DEFAULT 'FRUCAMTO',
-                    tipo_transaccion VARCHAR(50) DEFAULT 'COMPRA',
-                    FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
-                )`);
-            });
-            resolve(db);
-        });
-    });
-}
 
 const NIVELES_CLIENTE = {
     NUEVO: { min: 0, max: 19, multiplier: 0.10, color: '#22c55e' },
@@ -75,6 +36,47 @@ function calcularCredcambios(montoSoles, nivel) {
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// ==================== CONEXIÓN Y CREACIÓN DE BASE DE DATOS ====================
+let db;
+function initDatabase() {
+    return new Promise((resolve, reject) => {
+        const dbInstance = new sqlite3.Database(DB_FILE, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
+            if (err) {
+                console.error('❌ Error conectando a la base de datos:', err.message);
+                reject(err);
+                return;
+            }
+            dbInstance.serialize(() => {
+                dbInstance.run(`PRAGMA foreign_keys = ON`);
+                dbInstance.run(`CREATE TABLE IF NOT EXISTS clientes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dni VARCHAR(8) UNIQUE NOT NULL,
+                    nombre_completo VARCHAR(255) NOT NULL,
+                    direccion TEXT,
+                    telefono VARCHAR(15),
+                    credicambios_total REAL DEFAULT 0,
+                    visitas_total INTEGER DEFAULT 0,
+                    nivel VARCHAR(20) DEFAULT 'NUEVO',
+                    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )`);
+                dbInstance.run(`CREATE TABLE IF NOT EXISTS transacciones (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cliente_id INTEGER NOT NULL,
+                    fecha_transaccion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    monto_gastado REAL NOT NULL,
+                    credicambios_ganados REAL NOT NULL,
+                    multiplicador_usado REAL NOT NULL,
+                    descripcion TEXT,
+                    sucursal VARCHAR(100) DEFAULT 'FRUCAMTO',
+                    tipo_transaccion VARCHAR(50) DEFAULT 'COMPRA',
+                    FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
+                )`);
+            });
+            resolve(dbInstance);
+        });
+    });
+}
 
 // ==================== ENDPOINTS ====================
 
@@ -192,7 +194,6 @@ app.post('/api/admin/limpiar-todo', (req, res) => {
 });
 
 // ========== INICIO DEL SERVIDOR ==========
-let db;
 initDatabase().then((database) => {
     db = database;
     app.listen(PORT, '0.0.0.0', () => {
