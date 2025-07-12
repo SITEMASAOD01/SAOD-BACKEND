@@ -1,22 +1,14 @@
+const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-Copyconst fs = require('fs');
-const path = require('path');
+const cors = require('cors');
+const helmet = require('helmet');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3001;
 const DB_FILE = process.env.DB_FILE || '/data/database.sqlite';
-// Asegura que la carpeta '/data' exista (por si acaso, aunque Render la crea)
-const dbDir = path.dirname(DB_FILE);
-if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-}
 
 console.log('Ruta BD:', DB_FILE);
-const db = new sqlite3.Database(DB_FILE, (err) => {
-    if (err) {
-        console.error('❌ Error conectando a la base de datos:', err.message);
-        process.exit(1);
-    }
-    // ... resto del código ...
-});
-
 
 function initDatabase() {
     return new Promise((resolve, reject) => {
@@ -57,6 +49,12 @@ function initDatabase() {
     });
 }
 
+const NIVELES_CLIENTE = {
+    NUEVO: { min: 0, max: 19, multiplier: 0.10, color: '#22c55e' },
+    FRECUENTE: { min: 20, max: 49, multiplier: 0.12, color: '#eab308' },
+    PREMIUM: { min: 50, max: 99, multiplier: 0.15, color: '#ea580c' },
+    CREDIP_VIP: { min: 100, max: Infinity, multiplier: 0.20, color: '#dc2626' }
+};
 
 function determinarNivel(visitas) {
     for (const [nivel, config] of Object.entries(NIVELES_CLIENTE)) {
@@ -72,6 +70,9 @@ function calcularCredcambios(montoSoles, nivel) {
     return Math.round((montoSoles * multiplier) * 100) / 100;
 }
 
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
 
 // ==================== ENDPOINTS ====================
 
