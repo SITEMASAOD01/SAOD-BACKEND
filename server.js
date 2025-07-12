@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
@@ -6,13 +7,14 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DB_FILE = process.env.DB_FILE || '/data/database.sqlite';
 
+// ¡ESTA ES LA ÚNICA RUTA CORRECTA PARA RENDER!
+const DB_FILE = process.env.DB_FILE || '/data/database.sqlite';
 console.log('Ruta BD:', DB_FILE);
 
 function initDatabase() {
     return new Promise((resolve, reject) => {
-        const db = new sqlite3.Database(DB_FILE, (err) => {
+        const db = new sqlite3.Database(DB_FILE, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
             if (err) {
                 console.error('❌ Error conectando a la base de datos:', err.message);
                 reject(err);
@@ -76,17 +78,14 @@ app.use(express.json({ limit: '10mb' }));
 
 // ==================== ENDPOINTS ====================
 
-// Info API (raíz)
 app.get('/', (req, res) => {
     res.json({ message: 'Sistema SAOD API funcionando correctamente', version: '2.0.0', status: 'active', niveles: NIVELES_CLIENTE });
 });
 
-// Endpoint de test (para verificar deploy)
 app.get('/test', (req, res) => {
     res.json({ msg: 'Test OK', hora: new Date() });
 });
 
-// Consultar cliente por DNI
 app.get('/api/cliente/:dni', (req, res) => {
     const { dni } = req.params;
     if (!dni || dni.length !== 8) return res.status(400).json({ error: 'DNI debe tener 8 dígitos' });
@@ -123,7 +122,6 @@ app.get('/api/cliente/:dni', (req, res) => {
     });
 });
 
-// Registrar nuevo cliente
 app.post('/api/cliente', (req, res) => {
     const { dni, nombre, direccion, telefono } = req.body;
     if (!dni || !nombre) return res.status(400).json({ error: 'Datos incompletos' });
@@ -141,7 +139,6 @@ app.post('/api/cliente', (req, res) => {
     );
 });
 
-// Registrar venta (transacción)
 app.post('/api/venta', (req, res) => {
     const { dni, monto, descripcion } = req.body;
     if (!dni || !monto) return res.status(400).json({ error: 'Datos incompletos para registrar venta' });
@@ -167,7 +164,6 @@ app.post('/api/venta', (req, res) => {
     });
 });
 
-// CANJE de credicambios
 app.post('/api/canje', (req, res) => {
     const { dni, cantidadCanjeada } = req.body;
     if (!dni || typeof cantidadCanjeada !== "number" || cantidadCanjeada <= 0) {
@@ -185,7 +181,6 @@ app.post('/api/canje', (req, res) => {
     });
 });
 
-// Endpoint para limpiar la base de datos SOLO para pruebas/desarrollo
 app.post('/api/admin/limpiar-todo', (req, res) => {
     db.run('DELETE FROM transacciones', (err1) => {
         if (err1) return res.status(500).json({ error: 'No se pudo borrar transacciones' });
