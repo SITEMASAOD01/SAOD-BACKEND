@@ -1,13 +1,22 @@
-app = "flyct-long-silence-9409"
+# fly.toml app configuration file generated for saod-backend on 2025-07-13T23:38:31-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-[env]
-  PORT = "3000"
+app = 'saod-backend'
+primary_region = 'bog'
 
-[[services]]
+[build]
+
+[http_service]
   internal_port = 3000
-  protocol = "tcp"
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
-  [[services.ports]]
-    port = 80
-  [[services.ports]]
-    port = 443
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
