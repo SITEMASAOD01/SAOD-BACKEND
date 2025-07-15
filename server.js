@@ -1,8 +1,7 @@
 const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
 const app = express();
-
 const PORT = process.env.PORT || 3000;  // OJO: default 3000, NO 8080
-
 const DB_FILE = '/tmp/database.sqlite';
 console.log('Ruta BD:', DB_FILE);
 
