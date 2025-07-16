@@ -1,13 +1,42 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
+const cors = require('cors');
+const helmet = require('helmet');
+require('dotenv').config();
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000; // Fly.io pasará el puerto por env
 
 // Usa /tmp para máxima compatibilidad en Fly.io
 const DB_FILE = '/tmp/database.sqlite';
 console.log('Ruta BD:', DB_FILE);
 
-// Conexión y creación de la base de datos
+const NIVELES_CLIENTE = {
+    NUEVO: { min: 0, max: 19, multiplier: 0.10, color: '#22c55e' },
+    FRECUENTE: { min: 20, max: 49, multiplier: 0.12, color: '#eab308' },
+    PREMIUM: { min: 50, max: 99, multiplier: 0.15, color: '#ea580c' },
+    CREDIP_VIP: { min: 100, max: Infinity, multiplier: 0.20, color: '#dc2626' }
+};
+
+function determinarNivel(visitas) {
+    for (const [nivel, config] of Object.entries(NIVELES_CLIENTE)) {
+        if (visitas >= config.min && visitas <= config.max) {
+            return nivel;
+        }
+    }
+    return 'NUEVO';
+}
+
+function calcularCredcambios(montoSoles, nivel) {
+    const multiplier = NIVELES_CLIENTE[nivel]?.multiplier || 0.05;
+    return Math.round((montoSoles * multiplier) * 100) / 100;
+}
+
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+// CONEXIÓN Y CREACIÓN DE LA BASE DE DATOS
 const db = new sqlite3.Database(DB_FILE, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
     if (err) {
         console.error('❌ Error conectando a la base de datos:', err.message);
@@ -40,31 +69,7 @@ const db = new sqlite3.Database(DB_FILE, sqlite3.OPEN_READWRITE | sqlite3.OPEN_C
         )`);
     });
 });
-
-const NIVELES_CLIENTE = {
-    NUEVO: { min: 0, max: 19, multiplier: 0.10, color: '#22c55e' },
-    FRECUENTE: { min: 20, max: 49, multiplier: 0.12, color: '#eab308' },
-    PREMIUM: { min: 50, max: 99, multiplier: 0.15, color: '#ea580c' },
-    CREDIP_VIP: { min: 100, max: Infinity, multiplier: 0.20, color: '#dc2626' }
-};
-
-function determinarNivel(visitas) {
-    for (const [nivel, config] of Object.entries(NIVELES_CLIENTE)) {
-        if (visitas >= config.min && visitas <= config.max) {
-            return nivel;
-        }
-    }
-    return 'NUEVO';
-}
-
-function calcularCredcambios(montoSoles, nivel) {
-    const multiplier = NIVELES_CLIENTE[nivel]?.multiplier || 0.05;
-    return Math.round((montoSoles * multiplier) * 100) / 100;
-}
-
-app.use(express.json({ limit: '10mb' }));
-
-// ==================== ENDPOINTS ====================
+// ========== ENDPOINTS BÁSICOS ==========
 
 // Endpoint de prueba
 app.get('/', (req, res) => {
@@ -80,30 +85,7 @@ app.get('/api/cliente/:dni', (req, res) => {
         if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
         db.all(`SELECT * FROM transacciones WHERE cliente_id = ? ORDER BY fecha_transaccion DESC LIMIT 20`, [cliente.id], (err, transacciones) => {
             if (err) return res.status(500).json({ error: 'Error obteniendo historial' });
-            const nivelConfig = NIVELES_CLIENTE[cliente.nivel] || NIVELES_CLIENTE.NUEVO;
-            const equivalenteSoles = Math.round((cliente.credicambios_total * 0.1) * 100) / 100;
-            res.json({
-                cliente: {
-                    dni: cliente.dni,
-                    nombre: cliente.nombre_completo,
-                    telefono: cliente.telefono,
-                    direccion: cliente.direccion,
-                    credicambios: cliente.credicambios_total,
-                    equivalente_soles: equivalenteSoles,
-                    nivel: cliente.nivel,
-                    visitas_total: cliente.visitas_total,
-                    color_nivel: nivelConfig.color,
-                    multiplicador: nivelConfig.multiplier,
-                    fecha_registro: cliente.fecha_registro
-                },
-                transacciones: transacciones.map(t => ({
-                    fecha: t.fecha_transaccion,
-                    monto: t.monto_gastado,
-                    credicambios: t.credicambios_ganados,
-                    multiplicador: t.multiplicador_usado,
-                    descripcion: t.descripcion
-                }))
-            });
+            res.json({ cliente, transacciones });
         });
     });
 });
@@ -117,7 +99,7 @@ app.post('/api/cliente', (req, res) => {
         function (err) {
             if (err) {
                 if (err.message && err.message.includes('UNIQUE')) {
-                    return res.status(409).json({ error: 'El DNI ya está registrado. Si eres tú, consulta tus puntos.' });
+                    return res.status(409).json({ error: 'El DNI ya está registrado.' });
                 }
                 return res.status(500).json({ error: 'No se pudo registrar cliente.' });
             }
@@ -132,21 +114,11 @@ app.post('/api/venta', (req, res) => {
     if (!dni || !monto) return res.status(400).json({ error: 'Datos incompletos para registrar venta' });
     db.get('SELECT * FROM clientes WHERE dni = ?', [dni], (err, cliente) => {
         if (err || !cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
-        const nivel = cliente.nivel || determinarNivel(cliente.visitas_total || 0);
-        const credicambios = calcularCredcambios(monto, nivel);
-        const nuevasVisitas = (cliente.visitas_total || 0) + 1;
-        const nuevoNivel = determinarNivel(nuevasVisitas);
-        db.run('UPDATE clientes SET credicambios_total = credicambios_total + ?, visitas_total = ?, nivel = ? WHERE id = ?',
-            [credicambios, nuevasVisitas, nuevoNivel, cliente.id],
-            function (updateErr) {
-                if (updateErr) return res.status(500).json({ error: 'Error al actualizar cliente' });
-                db.run('INSERT INTO transacciones (cliente_id, monto_gastado, credicambios_ganados, multiplicador_usado, descripcion) VALUES (?, ?, ?, ?, ?)',
-                    [cliente.id, monto, credicambios, NIVELES_CLIENTE[nivel].multiplier, descripcion],
-                    function (transErr) {
-                        if (transErr) return res.status(500).json({ error: 'Error al guardar transacción' });
-                        res.json({ ok: true, credicambios_ganados: credicambios, nivel_cliente: nuevoNivel });
-                    }
-                );
+        db.run('INSERT INTO transacciones (cliente_id, monto_gastado, credicambios_ganados, multiplicador_usado, descripcion) VALUES (?, ?, ?, ?, ?)',
+            [cliente.id, monto, Math.round(monto*0.1*100)/100, 0.1, descripcion],
+            function (transErr) {
+                if (transErr) return res.status(500).json({ error: 'Error al guardar transacción' });
+                res.json({ ok: true });
             }
         );
     });
