@@ -7,10 +7,15 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000; // Fly.io pasará el puerto por env
 
-// Usa /tmp para máxima compatibilidad en Fly.io
 const DB_FILE = '/tmp/database.sqlite';
 console.log('Ruta BD:', DB_FILE);
 
+// --- Seguridad/CORS ---
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+// --- Niveles cliente, utilidades ---
 const NIVELES_CLIENTE = {
     NUEVO: { min: 0, max: 19, multiplier: 0.10, color: '#22c55e' },
     FRECUENTE: { min: 20, max: 49, multiplier: 0.12, color: '#eab308' },
@@ -32,11 +37,7 @@ function calcularCredcambios(montoSoles, nivel) {
     return Math.round((montoSoles * multiplier) * 100) / 100;
 }
 
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-
-// CONEXIÓN Y CREACIÓN DE LA BASE DE DATOS
+// --- Conexión y creación de base de datos ---
 const db = new sqlite3.Database(DB_FILE, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
     if (err) {
         console.error('❌ Error conectando a la base de datos:', err.message);
@@ -69,14 +70,12 @@ const db = new sqlite3.Database(DB_FILE, sqlite3.OPEN_READWRITE | sqlite3.OPEN_C
         )`);
     });
 });
-// ========== ENDPOINTS BÁSICOS ==========
 
-// Endpoint de prueba
+// === ENDPOINTS ===
 app.get('/', (req, res) => {
     res.send('¡Fly.io funcionando con SQLite en /tmp!');
 });
 
-// Consultar cliente por DNI
 app.get('/api/cliente/:dni', (req, res) => {
     const { dni } = req.params;
     if (!dni || dni.length !== 8) return res.status(400).json({ error: 'DNI debe tener 8 dígitos' });
@@ -90,7 +89,6 @@ app.get('/api/cliente/:dni', (req, res) => {
     });
 });
 
-// Registrar nuevo cliente
 app.post('/api/cliente', (req, res) => {
     const { dni, nombre, direccion, telefono } = req.body;
     if (!dni || !nombre) return res.status(400).json({ error: 'Datos incompletos' });
@@ -108,7 +106,6 @@ app.post('/api/cliente', (req, res) => {
     );
 });
 
-// Registrar venta (transacción)
 app.post('/api/venta', (req, res) => {
     const { dni, monto, descripcion } = req.body;
     if (!dni || !monto) return res.status(400).json({ error: 'Datos incompletos para registrar venta' });
@@ -124,7 +121,6 @@ app.post('/api/venta', (req, res) => {
     });
 });
 
-// CANJE de credicambios
 app.post('/api/canje', (req, res) => {
     const { dni, cantidadCanjeada } = req.body;
     if (!dni || typeof cantidadCanjeada !== "number" || cantidadCanjeada <= 0) {
@@ -142,7 +138,6 @@ app.post('/api/canje', (req, res) => {
     });
 });
 
-// Limpiar toda la base de datos
 app.post('/api/admin/limpiar-todo', (req, res) => {
     db.run('DELETE FROM transacciones', (err1) => {
         if (err1) return res.status(500).json({ error: 'No se pudo borrar transacciones' });
