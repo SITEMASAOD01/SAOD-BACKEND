@@ -106,20 +106,45 @@ app.post('/api/cliente', (req, res) => {
     );
 });
 
+
 app.post('/api/venta', (req, res) => {
     const { dni, monto, descripcion } = req.body;
     if (!dni || !monto) return res.status(400).json({ error: 'Datos incompletos para registrar venta' });
     db.get('SELECT * FROM clientes WHERE dni = ?', [dni], (err, cliente) => {
         if (err || !cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
-        db.run('INSERT INTO transacciones (cliente_id, monto_gastado, credicambios_ganados, multiplicador_usado, descripcion) VALUES (?, ?, ?, ?, ?)',
-            [cliente.id, monto, Math.round(monto*0.1*100)/100, 0.1, descripcion],
-            function (transErr) {
-                if (transErr) return res.status(500).json({ error: 'Error al guardar transacción' });
-                res.json({ ok: true });
+
+        const nivel = cliente.nivel || determinarNivel(cliente.visitas_total || 0);
+        const credicambios = calcularCredcambios(monto, nivel);
+        const nuevasVisitas = (cliente.visitas_total || 0) + 1;
+        const nuevoNivel = determinarNivel(nuevasVisitas);
+
+        // Actualiza cliente: suma puntos, visitas, y nuevo nivel
+        db.run('UPDATE clientes SET credicambios_total = credicambios_total + ?, visitas_total = ?, nivel = ? WHERE id = ?',
+            [credicambios, nuevasVisitas, nuevoNivel, cliente.id],
+            function (updateErr) {
+                if (updateErr) return res.status(500).json({ error: 'Error al actualizar cliente' });
+
+                // Registra transacción
+                db.run('INSERT INTO transacciones (cliente_id, monto_gastado, credicambios_ganados, multiplicador_usado, descripcion) VALUES (?, ?, ?, ?, ?)',
+                    [cliente.id, monto, credicambios, NIVELES_CLIENTE[nivel].multiplier, descripcion],
+                    function (transErr) {
+                        if (transErr) return res.status(500).json({ error: 'Error al guardar transacción' });
+
+                        // Devuelve datos útiles al frontend
+                        res.json({
+                            ok: true,
+                            credicambios_ganados: credicambios,
+                            nivel_cliente: nuevoNivel,
+                            total_credicambios: (cliente.credicambios_total || 0) + credicambios,
+                            visitas_total: nuevasVisitas
+                        });
+                    }
+                );
             }
         );
     });
 });
+
 
 app.post('/api/canje', (req, res) => {
     const { dni, cantidadCanjeada } = req.body;
