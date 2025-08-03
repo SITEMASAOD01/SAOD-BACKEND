@@ -85,9 +85,31 @@ app.get('/api/cliente/:dni', (req, res) => {
         db.all(`SELECT * FROM transacciones WHERE cliente_id = ? ORDER BY fecha_transaccion DESC LIMIT 20`, [cliente.id], (err, transacciones) => {
             if (err) return res.status(500).json({ error: 'Error obteniendo historial' });
             res.json({ cliente, transacciones });
+: {
+                    dni: cliente.dni,
+                    nombre: cliente.nombre_completo,
+                    telefono: cliente.telefono,
+                    direccion: cliente.direccion,
+                    credicambios: cliente.credicambios_total,
+                    equivalente_soles: Math.round((cliente.credicambios_total * 0.1) * 100) / 100,
+                    nivel: cliente.nivel,
+                    visitas_total: cliente.visitas_total,
+                    color_nivel: "#22c55e", // O usa el color de tu nivel
+                    multiplicador: 0.1,     // O usa el multiplicador real
+                    fecha_registro: cliente.fecha_registro
+                },
+                transacciones: transacciones.map(t => ({
+                    fecha: t.fecha_transaccion,
+                    monto: t.monto_gastado,
+                    credicambios: t.credicambios_ganados,
+                    multiplicador: t.multiplicador_usado,
+                    descripcion: t.descripcion
+                }))
+            });
         });
     });
 });
+   
 
 app.post('/api/cliente', (req, res) => {
     const { dni, nombre, direccion, telefono } = req.body;
