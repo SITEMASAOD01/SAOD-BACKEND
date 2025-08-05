@@ -84,8 +84,8 @@ app.get('/api/cliente/:dni', (req, res) => {
         if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
         db.all(`SELECT * FROM transacciones WHERE cliente_id = ? ORDER BY fecha_transaccion DESC LIMIT 20`, [cliente.id], (err, transacciones) => {
             if (err) return res.status(500).json({ error: 'Error obteniendo historial' });
-            res.json({ cliente, transacciones });
-: {
+            res.json({
+                cliente: {
                     dni: cliente.dni,
                     nombre: cliente.nombre_completo,
                     telefono: cliente.telefono,
